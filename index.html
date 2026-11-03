@@ -557,7 +557,7 @@ function generate(){
   };
   state.cfg = cfg;
 
-  var records = [], warn = [], emptyPrize = 0, unparsed = {};
+  var records = [], warn = [], emptyPrize = 0, skippedEmpty = [], unparsed = {};
   var lIdx = selectedIdx('colLevel'); if (lIdx < 0) lIdx = state.colIdx.level;
   var prevLevel = '', prevPrize = '';
   for (var r = hdr.row + 1; r < rows.length; r++){
@@ -572,7 +572,7 @@ function generate(){
       if (level) prevLevel = level; else level = prevLevel;
       if (prize) prevPrize = prize; else prize = prevPrize;
     }
-    if (!prize){ emptyPrize++; continue; }
+    if (!prize){ emptyPrize++; skippedEmpty.push({ row: r+1, base: base, name: name, level: level || prevLevel }); continue; }
     var sp = splitPrize(prize);
     var recLevel = '', recRank = 99;
     if (lIdx >= 0){ recLevel = level; recRank = LEVEL_ORDER[level] != null ? LEVEL_ORDER[level] : 99; }
@@ -602,7 +602,7 @@ function generate(){
   state.baseRows = {};
   state.prizeRows = null;
   state.claimRows = {};
-  state.warnings.push('共解析 ' + records.length + ' 条有效记录' + (emptyPrize ? '，跳过奖品列为空的 ' + emptyPrize + ' 条' : ''));
+  state.warnings.push({ type:'summary', total: records.length, skippedRows: skippedEmpty });
   var up = Object.keys(unparsed);
   if (up.length) state.warnings.push('未识别奖级的奖品 ' + up.length + ' 种：' + up.slice(0, 4).join('、') + (up.length > 4 ? ' 等' : ''));
   state.warnings.push('基地别名已归一：安徽合肥/合肥分校/合肥有道天源迪科/刘星宇 → 合肥');
@@ -654,11 +654,46 @@ function renderAll(){
   });
   var wb = $('warnBox');
   wb.innerHTML = '';
-  var notable = state.warnings.filter(function(w){ return w.indexOf('剔除') >= 0 || w.indexOf('未识别') >= 0 || w.indexOf('跳过') >= 0 || w.indexOf('不在基地') >= 0; });
+  var notable = state.warnings.filter(function(w){
+    if (typeof w === 'object') return w.type === 'summary' && w.skippedRows && w.skippedRows.length;
+    return w.indexOf('剔除') >= 0 || w.indexOf('未识别') >= 0 || w.indexOf('跳过') >= 0 || w.indexOf('不在基地') >= 0;
+  });
   if (notable.length){
     wb.style.display = 'block';
     var ul = document.createElement('ul');
-    notable.forEach(function(w){ var li = document.createElement('li'); li.textContent = w; ul.appendChild(li); });
+    notable.forEach(function(w){
+      var li = document.createElement('li');
+      if (typeof w === 'string'){
+        li.textContent = w;
+      } else if (w.type === 'summary'){
+        li.textContent = '共解析 ' + w.total + ' 条有效记录，跳过奖品列为空的 ' + w.skippedRows.length + ' 条';
+        var link = document.createElement('a');
+        link.href = 'javascript:void(0)';
+        link.textContent = '查看这 ' + w.skippedRows.length + ' 条';
+        link.style.cssText = 'color:#B25E09;margin-left:6px;text-decoration:underline;cursor:pointer;font-weight:600';
+        var detail = document.createElement('div');
+        detail.style.cssText = 'display:none;margin:6px 0 0;padding:8px;background:#fff;border-radius:6px;border:1px solid #F3D9B5;font-size:12px;color:#5a4a2f;max-height:260px;overflow:auto';
+        var html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="text-align:left;color:#999"><th style="padding:2px 10px 2px 2px">Excel行</th><th style="padding:2px 10px">基地</th><th style="padding:2px 10px">姓名</th><th style="padding:2px 2px 2px 10px">奖级</th></tr></thead><tbody>';
+        w.skippedRows.forEach(function(s){
+          html += '<tr><td style="padding:3px 10px 3px 2px;border-top:1px solid #F3E6CE;color:#B25E09">第 ' + s.row + ' 行</td>'
+                + '<td style="padding:3px 10px;border-top:1px solid #F3E6CE">' + esc(s.base || '-') + '</td>'
+                + '<td style="padding:3px 10px;border-top:1px solid #F3E6CE">' + esc(s.name || '-') + '</td>'
+                + '<td style="padding:3px 2px 3px 10px;border-top:1px solid #F3E6CE">' + esc(s.level || '-') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        detail.innerHTML = html;
+        link.onclick = function(){
+          var open = detail.style.display === 'none';
+          detail.style.display = open ? 'block' : 'none';
+          link.textContent = open ? '收起明细' : ('查看这 ' + w.skippedRows.length + ' 条');
+        };
+        li.appendChild(document.createTextNode('（'));
+        li.appendChild(link);
+        li.appendChild(document.createTextNode('）'));
+        li.appendChild(detail);
+      }
+      ul.appendChild(li);
+    });
     wb.appendChild(ul);
   } else wb.style.display = 'none';
 
