@@ -568,6 +568,8 @@ function generate(){
     if (lead.indexOf('获奖名单') >= 0 || lead.indexOf('奖池') >= 0){ prevLevel = ''; prevPrize = ''; continue; }
     if (level === '奖品等级' || prize === '奖品' || (base === '基地' && name === '姓名')){ prevLevel = ''; prevPrize = ''; continue; }
     if (!base && !name && !prize && !level) continue;
+    // 奖品列空、等级列有值且不是奖级名 → 等级列文本实为奖品（金穗盲盒等无等级段，奖品与等级合并写在首列）
+    if (!prize && level && !PRIZE_RE.test(level)){ prize = level; level = ''; }
     if (lIdx >= 0){
       if (level) prevLevel = level; else level = prevLevel;
       if (prize) prevPrize = prize; else prize = prevPrize;
